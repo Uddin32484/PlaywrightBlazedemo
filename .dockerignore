@@ -1,0 +1,39 @@
+# Node modules
+node_modules
+npm-debug.log*
+
+# Test results and reports
+test-results
+playwright-report
+blob-report
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Cache
+.npm
+.cache
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Temporary files
+*.tmp
+*.temp
+
+# Coverage
+coverage

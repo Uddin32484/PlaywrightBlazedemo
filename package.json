@@ -1,0 +1,47 @@
+{
+  "name": "blazedemo-flight-tests",
+  "version": "1.0.0",
+  "description": "Playwright tests for Blazedemo flight booking with TypeScript",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:headless": "playwright test --headless",
+    "test:debug": "playwright test --debug",
+    "test:report": "playwright show-report",
+    "test:codegen": "playwright codegen",
+    "test:ui": "playwright test --ui",
+    "test:main": "playwright test tests/main-booking-validation.spec.ts",
+    "test:main:headed": "playwright test tests/main-booking-validation.spec.ts --headed",
+    "test:main:debug": "playwright test tests/main-booking-validation.spec.ts --debug",
+    "test:desktop": "playwright test --project=chromium --project=firefox --project=webkit",
+    "test:mobile": "playwright test --grep=\"Mobile|Android|iOS\"",
+    "test:android": "playwright test --grep=\"Android\"",
+    "test:ios": "playwright test --grep=\"iOS\"",
+    "test:iphone": "playwright test --grep=\"iPhone\"",
+    "test:ipad": "playwright test --grep=\"iPad\"",
+    "test:pixel": "playwright test --grep=\"Pixel\"",
+    "test:galaxy": "playwright test --grep=\"Galaxy\"",
+    "test:screenshot": "playwright test tests/screenshot-tests.spec.ts",
+    "test:screenshot:headed": "playwright test tests/screenshot-tests.spec.ts --headed",
+    "test:with-screenshots": "playwright test --headed --screenshot=on",
+    "test:trace": "playwright test --trace=on",
+    "clean:screenshots": "rimraf test-results/screenshots",
+    "docker:build": "docker build -t blazedemo-playwright .",
+    "docker:run": "docker run --rm -v $(pwd)/test-results:/app/test-results -v $(pwd)/playwright-report:/app/playwright-report blazedemo-playwright",
+    "docker:test": "docker-compose up playwright-tests",
+    "docker:test:headed": "docker-compose up playwright-headed",
+    "docker:dev": "docker-compose up node-dev",
+    "docker:report": "docker-compose up report-server",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.54.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^18.0.0"
+  },
+  "keywords": ["playwright", "testing", "e2e", "typescript", "page-object-model"]
+}
