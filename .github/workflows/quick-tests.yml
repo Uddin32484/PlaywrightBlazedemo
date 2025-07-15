@@ -1,0 +1,40 @@
+name: Quick Tests
+
+on:
+  push:
+    branches: [ feature/*, fix/* ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  quick-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Install Playwright Browsers (Chromium only)
+      run: npx playwright install chromium
+
+    - name: Run smoke tests
+      run: npx playwright test --project=chromium --grep="@smoke" --reporter=line
+      env:
+        CI: true
+
+    - name: Upload test results on failure
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: quick-test-results
+        path: test-results/
+        retention-days: 7

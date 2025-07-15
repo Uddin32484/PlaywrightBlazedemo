@@ -1,0 +1,35 @@
+name: Update Status Badges
+
+on:
+  workflow_run:
+    workflows: ["Playwright Tests", "Quick Tests", "Nightly Regression Tests"]
+    types:
+      - completed
+
+jobs:
+  update-badges:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Update README with status badges
+      run: |
+        # Create badges section if it doesn't exist
+        if ! grep -q "## 🏷️ Status Badges" README.md; then
+          sed -i '3i\\n## 🏷️ Status Badges\n\n[![Playwright Tests](https://github.com/${{ github.repository }}/actions/workflows/playwright.yml/badge.svg)](https://github.com/${{ github.repository }}/actions/workflows/playwright.yml)\n[![Quick Tests](https://github.com/${{ github.repository }}/actions/workflows/quick-tests.yml/badge.svg)](https://github.com/${{ github.repository }}/actions/workflows/quick-tests.yml)\n[![Regression Tests](https://github.com/${{ github.repository }}/actions/workflows/regression.yml/badge.svg)](https://github.com/${{ github.repository }}/actions/workflows/regression.yml)\n' README.md
+        fi
+
+    - name: Commit badge updates
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add README.md
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "Update status badges [skip ci]"
+          git push
+        fi

@@ -1,0 +1,257 @@
+name: Playwright Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      test_suite:
+        description: 'Test suite to run'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - smoke
+          - screenshot
+          - mobile
+      browser:
+        description: 'Browser to test'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - chromium
+          - firefox
+          - webkit
+
+jobs:
+  test:
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+        include:
+          - browser: chromium
+            project: chromium
+          - browser: firefox
+            project: firefox
+          - browser: webkit
+            project: webkit
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Install Playwright Browsers
+      run: npx playwright install --with-deps
+
+    - name: Create test directories
+      run: |
+        mkdir -p test-results
+        mkdir -p playwright-report
+
+    - name: Run Playwright tests
+      run: |
+        if [[ "${{ github.event.inputs.test_suite }}" == "smoke" ]]; then
+          npx playwright test --project=${{ matrix.project }} --grep="@smoke"
+        elif [[ "${{ github.event.inputs.test_suite }}" == "screenshot" ]]; then
+          npx playwright test --project=${{ matrix.project }} --grep="@screenshot"
+        elif [[ "${{ github.event.inputs.test_suite }}" == "mobile" ]]; then
+          npx playwright test --project=${{ matrix.project }} --grep="Mobile|Android|iOS"
+        else
+          npx playwright test --project=${{ matrix.project }}
+        fi
+      env:
+        CI: true
+
+    - name: Upload Playwright Report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: playwright-report-${{ matrix.browser }}
+        path: playwright-report/
+        retention-days: 30
+
+    - name: Upload Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ matrix.browser }}
+        path: test-results/
+        retention-days: 30
+
+  mobile-tests:
+    timeout-minutes: 90
+    runs-on: ubuntu-latest
+    if: github.event.inputs.test_suite == 'mobile' || github.event.inputs.test_suite == 'all' || github.event_name != 'workflow_dispatch'
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Install Playwright Browsers
+      run: npx playwright install --with-deps
+
+    - name: Run Mobile Device Tests
+      run: npx playwright test --project="Mobile Chrome" --project="Android Pixel 7" --project="iOS iPhone 13"
+      env:
+        CI: true
+
+    - name: Upload Mobile Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: mobile-test-results
+        path: test-results/
+        retention-days: 30
+
+  screenshot-tests:
+    timeout-minutes: 45
+    runs-on: ubuntu-latest
+    if: github.event.inputs.test_suite == 'screenshot' || github.event.inputs.test_suite == 'all' || github.event_name != 'workflow_dispatch'
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Install Playwright Browsers
+      run: npx playwright install --with-deps
+
+    - name: Run Screenshot Tests
+      run: npx playwright test tests/screenshot-tests.spec.ts
+      env:
+        CI: true
+
+    - name: Upload Screenshots
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: screenshots
+        path: test-results/screenshots/
+        retention-days: 30
+
+  docker-tests:
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event.inputs.test_suite == 'all'
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Build Docker image
+      run: docker build -t blazedemo-playwright .
+
+    - name: Run tests in Docker
+      run: |
+        docker run --rm \
+          -v ${{ github.workspace }}/test-results:/app/test-results \
+          -v ${{ github.workspace }}/playwright-report:/app/playwright-report \
+          -e CI=true \
+          blazedemo-playwright npm test
+
+    - name: Upload Docker Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: docker-test-results
+        path: test-results/
+        retention-days: 30
+
+  publish-report:
+    needs: [test, mobile-tests, screenshot-tests]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+
+    - name: Publish HTML Report
+      uses: peaceiris/actions-gh-pages@v3
+      if: github.ref == 'refs/heads/main'
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: playwright-report-chromium
+        destination_dir: reports/${{ github.run_number }}
+
+    - name: Comment PR with report link
+      uses: actions/github-script@v7
+      if: github.event_name == 'pull_request'
+      with:
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `## 🎭 Playwright Test Results
+            
+            **Test Run:** #${{ github.run_number }}
+            **Status:** ${{ job.status }}
+            **Report:** [View HTML Report](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/reports/${{ github.run_number }})
+            
+            ### Artifacts Available:
+            - 📊 Test Reports (All browsers)
+            - 📱 Mobile Test Results  
+            - 📸 Screenshots
+            - 🐳 Docker Test Results (if applicable)
+            `
+          })
+
+  notification:
+    needs: [test, mobile-tests, screenshot-tests, docker-tests]
+    runs-on: ubuntu-latest
+    if: always() && (failure() || cancelled())
+    
+    steps:
+    - name: Notify on failure
+      uses: actions/github-script@v7
+      with:
+        script: |
+          github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: `❌ Playwright Tests Failed - Run #${{ github.run_number }}`,
+            body: `## Test Failure Alert
+            
+            **Branch:** ${{ github.ref_name }}
+            **Commit:** ${{ github.sha }}
+            **Triggered by:** ${{ github.actor }}
+            **Workflow:** ${{ github.workflow }}
+            
+            Please check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
+            `,
+            labels: ['bug', 'ci-failure', 'playwright']
+          })
